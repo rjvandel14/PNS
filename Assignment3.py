@@ -2,13 +2,17 @@ import random, math
 import matplotlib.pyplot as plt
 from typing import List, Optional, Tuple, Dict
 
-
+## Tic-tac-toe environment
 player_X = 1   # opponent (random)
 player_O = -1  # our MCTS agent
 
 
 class TicTacToeState:
+    """
+    States: board of length 9 with entries in +1=X, -1=O, 0=empty and current player whose turn it is
+    """
     def __init__(self, board: Optional[List[int]] = None, current_player: int = player_X):
+        # if no board is igven, start with empty board
         self.board = board[:] if board is not None else [0] * 9
         self.current_player = current_player
 
@@ -16,18 +20,19 @@ class TicTacToeState:
         return TicTacToeState(self.board, self.current_player)
 
     def empty_cells(self) -> List[int]:
-        """Return list of empty positions (0..8)."""
+        # return list of available positions: A(x)
         return [i for i, v in enumerate(self.board) if v == 0]
 
     def play(self, action: int) -> "TicTacToeState":
-        """Return next state after current_player plays at index `action`."""
+        # apply action and switch player: return next state x'
         assert 0 <= action < 9 and self.board[action] == 0
         new_board = self.board[:]
         new_board[action] = self.current_player
+        # flipping sign to switch to other player
         return TicTacToeState(new_board, -self.current_player)
 
     def lines(self):
-        """All 8 win lines as triples of indices."""
+        # all winning combinations (rows, cols and diagonals)
         return [
             (0, 1, 2), (3, 4, 5), (6, 7, 8),  # rows
             (0, 3, 6), (1, 4, 7), (2, 5, 8),  # columns
@@ -36,9 +41,9 @@ class TicTacToeState:
 
     def is_terminal(self) -> Tuple[bool, int]:
         """
-        Returns (done, winner), winner in {player_X, player_O, 0}
-        0 means no winner (either draw or non-terminal).
+        Check if the game is over.
         """
+        # check all win combinations for three equal non-zero marks
         for a, b, c in self.lines():
             line_sum = self.board[a] + self.board[b] + self.board[c]
             if line_sum == 3 * player_X:
@@ -52,8 +57,9 @@ class TicTacToeState:
 
     def reward_for_O(self) -> Optional[float]:
         """
-        Reward from O's perspective.
-        1 for O win, 0 for loss, 0 for draw (you can change draw to 0.5 if you want).
+        Reward from O's perspective. only defined in terminal states
+        - 1 if O win, 
+        - 0 if X wins of draw
         """
         done, winner = self.is_terminal()
         if not done:
@@ -66,6 +72,7 @@ class TicTacToeState:
             return 0.0
 
     def pretty(self) -> str:
+        # 3x3 representation of the board
         symbols = {player_X: "X", player_O: "O", 0: "."}
         rows = []
         for r in range(3):
@@ -73,51 +80,50 @@ class TicTacToeState:
         return "\n".join(rows)
 
 
+## MCTS tree node
 class Node:
     def __init__(self, state: TicTacToeState,
                  parent: Optional["Node"] = None,
                  action_taken: Optional[int] = None):
-        self.state = state
-        self.parent = parent
+        self.state = state # tic tac toe state at this node
+        self.parent = parent # parent node
         self.action_taken = action_taken  # action from parent to reach this node
         self.children: Dict[int, Node] = {}  # action -> child node
         self.N = 0       # visit count
         self.W = 0.0     # total reward (for O)
 
     def is_fully_expanded(self) -> bool:
-        """All available actions from this state have been expanded."""
+        # check if all available actions from this state have corresponsing child nodes.
         return len(self.children) == len(self.state.empty_cells())
 
     def best_child(self, c: float) -> "Node":
-        """
-        Select child with highest UCT score:
-        Q + c * sqrt(log(N_parent) / N_child)
-        """
+        # choose child with highest UCT
         assert self.children
         log_N = math.log(self.N)
         best, best_score = None, -1e9
         for a, child in self.children.items():
             exploit = child.W / child.N
             explore = c * math.sqrt(log_N / child.N)
-            score = exploit + explore
+            score = exploit + explore # UCT score
             if score > best_score:
                 best, best_score = child, score
         return best
 
 
+
+## MCTS: selection, expansion, simulation, backpropagation
 def tree_policy(node: Node, c: float) -> Node:
-    """
-    Selection + Expansion.
-    Starting from `node`, descend the tree using UCT until we hit
-    a non-terminal node that is not fully expanded, then expand one child.
-    """
+    # Selection + expansion:
+    # starting from node, descend tree using UCT until non-terminal 
+    # node thats not fully expanded, then expand one child
+   
     state = node.state
     while True:
         done, _ = state.is_terminal()
         if done:
             return node
         if not node.is_fully_expanded():
-            # Expansion: pick an untried action
+            # expansion: pick an unexpanded action from empty cells
             untried = [a for a in state.empty_cells() if a not in node.children]
             a = random.choice(untried)
             next_state = state.play(a)
@@ -125,16 +131,15 @@ def tree_policy(node: Node, c: float) -> Node:
             node.children[a] = child
             return child
         else:
-            # Selection: follow best child by UCT
+            # Selection: move to best child according to UCT
             node = node.best_child(c)
             state = node.state
 
 
 def default_policy(state: TicTacToeState) -> float:
-    """
-    Rollout (simulation): play random moves for both players until terminal.
-    Return reward from O's perspective.
-    """
+    # Simulation / rollout:
+    # starting from state, play random moves for both players until terminal state
+    # return terminal reward from O's perspective
     done, _ = state.is_terminal()
     while not done:
         actions = state.empty_cells()
@@ -147,9 +152,8 @@ def default_policy(state: TicTacToeState) -> float:
 
 
 def backup(node: Node, reward: float):
-    """
-    Backpropagation: update N and W along the path from node to root.
-    """
+    # Backpropagation: traverse path from leaf to root, update (N,W) every node on path
+
     while node is not None:
         node.N += 1
         node.W += reward
@@ -159,11 +163,9 @@ def backup(node: Node, reward: float):
 def mcts(root_state: TicTacToeState,
          num_simulations: int = 500,
          c: float = math.sqrt(2.0)) -> Tuple[int, Node]:
-    """
-    Run MCTS from `root_state` and return:
-    - best_action according to visit count
-    - root node (so you can inspect children stats for plots)
-    """
+    
+    # run MCTS from root for num simulations
+    # return: best action with highest visit count and root node
     root = Node(root_state)
 
     for _ in range(num_simulations):
@@ -178,13 +180,12 @@ def mcts(root_state: TicTacToeState,
     return best_action, root
 
 
+## Games and evaluations
+
+# One game of tic tac toe
 def play_one_game(num_simulations_per_move: int = 500, verbose: bool = True) -> Tuple[float, int]:
-    """
-    Play one game:
-    - X: random policy
-    - O: MCTS with `num_simulations_per_move`
-    Returns (reward_for_O, winner), winner in {player_X, player_O, 0}.
-    """
+
+    # starter = X
     state = TicTacToeState(current_player=player_X)
 
     if verbose:
@@ -208,7 +209,7 @@ def play_one_game(num_simulations_per_move: int = 500, verbose: bool = True) -> 
             return reward, winner
 
         if state.current_player == player_X:
-            # X: random
+            # X uses random policy
             a = random.choice(state.empty_cells())
             state = state.play(a)
             if verbose:
@@ -216,7 +217,7 @@ def play_one_game(num_simulations_per_move: int = 500, verbose: bool = True) -> 
                 print(state.pretty())
                 print()
         else:
-            # O: MCTS
+            # O uses MCTS from current state
             a, root = mcts(state, num_simulations=num_simulations_per_move)
             if a == -1:
                 # no moves possible
@@ -238,9 +239,7 @@ def play_one_game(num_simulations_per_move: int = 500, verbose: bool = True) -> 
 
 
 def evaluate(num_games: int = 200, sims_per_move: int = 200) -> None:
-    """
-    Play `num_games` games vs random X and print win/draw/loss stats for O.
-    """
+    # Evaluate MCTS agent against random X
     wins = draws = losses = 0
 
     for i in range(num_games):
@@ -258,15 +257,14 @@ def evaluate(num_games: int = 200, sims_per_move: int = 200) -> None:
     print(f"O loses: {losses} ({losses/num_games:.3f})")
 
 
+## Convergence and action values
+
 def diagnose_root_state(state: TicTacToeState,
                         simulation_steps: List[int],
                         c: float = math.sqrt(2.0)):
-    """
-    For a fixed state, run MCTS multiple times with increasing num_simulations,
-    and collect estimated Q-values per available action at the root.
-
-    Returns a list of (num_simulations, {action: Q}) pairs.
-    """
+   
+    # For fixed root state, run MCTS for different sim budgets, 
+    # collect estimated Q values per available action
     results = []
 
     for n_sim in simulation_steps:
@@ -277,15 +275,14 @@ def diagnose_root_state(state: TicTacToeState,
             if child is not None and child.N > 0:
                 q_per_action[a] = child.W / child.N
             else:
-                q_per_action[a] = None  # never visited
+                q_per_action[a] = None  # action never visited
         results.append((n_sim, q_per_action))
 
     return results
 
 def print_q_values_as_grid(state: TicTacToeState, q_vals: Dict[int, Optional[float]]):
-    """
-    Print the board with Q-values in the empty cells.
-    """
+    
+    # Print board and q value estimates for empty cells
     symbols = {player_X: "X", player_O: "O", 0: "."}
     for r in range(3):
         row_cells = []
@@ -304,16 +301,7 @@ def print_q_values_as_grid(state: TicTacToeState, q_vals: Dict[int, Optional[flo
 
 
 def play_one_game_with_logging(num_simulations_per_move: int = 200):
-    """
-    Like play_one_game, but log for each O-move:
-    - the board state
-    - the estimated Q-values per available action at the root.
-
-    Returns:
-        history: list of dicts with keys:
-            'board'  : list[int] of length 9
-            'q_vals' : dict[action -> Q]
-    """
+    
     state = TicTacToeState(current_player=player_X)
     history = []
 
@@ -328,7 +316,7 @@ def play_one_game_with_logging(num_simulations_per_move: int = 200):
             a = random.choice(state.empty_cells())
             state = state.play(a)
         else:
-            # O: MCTS, but keep root for logging
+            # O: MCTS, but keep root for logging q values
             a, root = mcts(state, num_simulations=num_simulations_per_move)
 
             # collect Q-values per available action at this decision point
@@ -348,9 +336,8 @@ def play_one_game_with_logging(num_simulations_per_move: int = 200):
             state = state.play(a)
 
 def show_logged_game(history):
-    """
-    Print each O decision with its estimated action values.
-    """
+    # print each O decision with its estimated action values.
+    
     print("Logged O-moves with estimated winning probabilities:\n")
     for move_idx, info in enumerate(history, start=1):
         board = info["board"]
@@ -360,6 +347,7 @@ def show_logged_game(history):
         print_q_values_as_grid(tmp_state, q_vals)
 
 
+## Plots
 
 def make_convergence_plot():
     # State: X plays centre, O to move
@@ -393,7 +381,6 @@ def make_convergence_plot():
 def plot_board_with_q(board, q_vals, title, filename):
     fig, ax = plt.subplots()
 
-    # Coordinate system: cell centres at (0,1,2), board from -0.5 to 2.5
     ax.set_xlim(-0.5, 2.5)
     ax.set_ylim(-0.5, 2.5)
     ax.set_aspect('equal')
