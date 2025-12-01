@@ -1,19 +1,21 @@
 import random, math
+import matplotlib.pyplot as plt
 from typing import List, Optional, Tuple, Dict
 
-PLAYER_X = 1   # opponent (random)
-PLAYER_O = -1  # our MCTS agent
+
+player_X = 1   # opponent (random)
+player_O = -1  # our MCTS agent
 
 
 class TicTacToeState:
-    def __init__(self, board: Optional[List[int]] = None, current_player: int = PLAYER_X):
+    def __init__(self, board: Optional[List[int]] = None, current_player: int = player_X):
         self.board = board[:] if board is not None else [0] * 9
         self.current_player = current_player
 
     def copy(self):
         return TicTacToeState(self.board, self.current_player)
 
-    def legal_actions(self) -> List[int]:
+    def empty_cells(self) -> List[int]:
         """Return list of empty positions (0..8)."""
         return [i for i, v in enumerate(self.board) if v == 0]
 
@@ -34,15 +36,15 @@ class TicTacToeState:
 
     def is_terminal(self) -> Tuple[bool, int]:
         """
-        Returns (done, winner), winner in {PLAYER_X, PLAYER_O, 0}
+        Returns (done, winner), winner in {player_X, player_O, 0}
         0 means no winner (either draw or non-terminal).
         """
         for a, b, c in self.lines():
             line_sum = self.board[a] + self.board[b] + self.board[c]
-            if line_sum == 3 * PLAYER_X:
-                return True, PLAYER_X
-            if line_sum == 3 * PLAYER_O:
-                return True, PLAYER_O
+            if line_sum == 3 * player_X:
+                return True, player_X
+            if line_sum == 3 * player_O:
+                return True, player_O
         # no winner: check for draw
         if all(v != 0 for v in self.board):
             return True, 0  # draw
@@ -56,15 +58,15 @@ class TicTacToeState:
         done, winner = self.is_terminal()
         if not done:
             return None
-        if winner == PLAYER_O:
+        if winner == player_O:
             return 1.0
-        elif winner == PLAYER_X:
+        elif winner == player_X:
             return 0.0
         else:  # draw
             return 0.0
 
     def pretty(self) -> str:
-        symbols = {PLAYER_X: "X", PLAYER_O: "O", 0: "."}
+        symbols = {player_X: "X", player_O: "O", 0: "."}
         rows = []
         for r in range(3):
             rows.append(" ".join(symbols[self.board[3 * r + c]] for c in range(3)))
@@ -83,8 +85,8 @@ class Node:
         self.W = 0.0     # total reward (for O)
 
     def is_fully_expanded(self) -> bool:
-        """All legal actions from this state have been expanded."""
-        return len(self.children) == len(self.state.legal_actions())
+        """All available actions from this state have been expanded."""
+        return len(self.children) == len(self.state.empty_cells())
 
     def best_child(self, c: float) -> "Node":
         """
@@ -116,7 +118,7 @@ def tree_policy(node: Node, c: float) -> Node:
             return node
         if not node.is_fully_expanded():
             # Expansion: pick an untried action
-            untried = [a for a in state.legal_actions() if a not in node.children]
+            untried = [a for a in state.empty_cells() if a not in node.children]
             a = random.choice(untried)
             next_state = state.play(a)
             child = Node(next_state, parent=node, action_taken=a)
@@ -135,7 +137,7 @@ def default_policy(state: TicTacToeState) -> float:
     """
     done, _ = state.is_terminal()
     while not done:
-        actions = state.legal_actions()
+        actions = state.empty_cells()
         a = random.choice(actions)
         state = state.play(a)
         done, _ = state.is_terminal()
@@ -171,7 +173,7 @@ def mcts(root_state: TicTacToeState,
 
     # choose action with highest visit count
     if not root.children:
-        return -1, root  # no legal moves
+        return -1, root  # no empty cells
     best_action, best_child = max(root.children.items(), key=lambda kv: kv[1].N)
     return best_action, root
 
@@ -181,9 +183,9 @@ def play_one_game(num_simulations_per_move: int = 500, verbose: bool = True) -> 
     Play one game:
     - X: random policy
     - O: MCTS with `num_simulations_per_move`
-    Returns (reward_for_O, winner), winner in {PLAYER_X, PLAYER_O, 0}.
+    Returns (reward_for_O, winner), winner in {player_X, player_O, 0}.
     """
-    state = TicTacToeState(current_player=PLAYER_X)
+    state = TicTacToeState(current_player=player_X)
 
     if verbose:
         print("Initial state:\n", state.pretty())
@@ -194,9 +196,9 @@ def play_one_game(num_simulations_per_move: int = 500, verbose: bool = True) -> 
         if done:
             if verbose:
                 print("Final state:\n", state.pretty())
-                if winner == PLAYER_X:
+                if winner == player_X:
                     print("X (random) wins")
-                elif winner == PLAYER_O:
+                elif winner == player_O:
                     print("O (MCTS) wins")
                 else:
                     print("Draw")
@@ -205,9 +207,9 @@ def play_one_game(num_simulations_per_move: int = 500, verbose: bool = True) -> 
                 reward = 0.0
             return reward, winner
 
-        if state.current_player == PLAYER_X:
+        if state.current_player == player_X:
             # X: random
-            a = random.choice(state.legal_actions())
+            a = random.choice(state.empty_cells())
             state = state.play(a)
             if verbose:
                 print("X plays", a)
@@ -243,9 +245,9 @@ def evaluate(num_games: int = 200, sims_per_move: int = 200) -> None:
 
     for i in range(num_games):
         reward, winner = play_one_game(num_simulations_per_move=sims_per_move, verbose=False)
-        if winner == PLAYER_O:
+        if winner == player_O:
             wins += 1
-        elif winner == PLAYER_X:
+        elif winner == player_X:
             losses += 1
         else:
             draws += 1
@@ -261,7 +263,7 @@ def diagnose_root_state(state: TicTacToeState,
                         c: float = math.sqrt(2.0)):
     """
     For a fixed state, run MCTS multiple times with increasing num_simulations,
-    and collect estimated Q-values per legal action at the root.
+    and collect estimated Q-values per available action at the root.
 
     Returns a list of (num_simulations, {action: Q}) pairs.
     """
@@ -270,7 +272,7 @@ def diagnose_root_state(state: TicTacToeState,
     for n_sim in simulation_steps:
         action, root = mcts(state, num_simulations=n_sim, c=c)
         q_per_action = {}
-        for a in state.legal_actions():
+        for a in state.empty_cells():
             child = root.children.get(a)
             if child is not None and child.N > 0:
                 q_per_action[a] = child.W / child.N
@@ -284,7 +286,7 @@ def print_q_values_as_grid(state: TicTacToeState, q_vals: Dict[int, Optional[flo
     """
     Print the board with Q-values in the empty cells.
     """
-    symbols = {PLAYER_X: "X", PLAYER_O: "O", 0: "."}
+    symbols = {player_X: "X", player_O: "O", 0: "."}
     for r in range(3):
         row_cells = []
         for c in range(3):
@@ -305,14 +307,14 @@ def play_one_game_with_logging(num_simulations_per_move: int = 200):
     """
     Like play_one_game, but log for each O-move:
     - the board state
-    - the estimated Q-values per legal action at the root.
+    - the estimated Q-values per available action at the root.
 
     Returns:
         history: list of dicts with keys:
             'board'  : list[int] of length 9
             'q_vals' : dict[action -> Q]
     """
-    state = TicTacToeState(current_player=PLAYER_X)
+    state = TicTacToeState(current_player=player_X)
     history = []
 
     while True:
@@ -321,17 +323,17 @@ def play_one_game_with_logging(num_simulations_per_move: int = 200):
             reward = state.reward_for_O() or 0.0
             return reward, winner, history
 
-        if state.current_player == PLAYER_X:
+        if state.current_player == player_X:
             # X: random
-            a = random.choice(state.legal_actions())
+            a = random.choice(state.empty_cells())
             state = state.play(a)
         else:
             # O: MCTS, but keep root for logging
             a, root = mcts(state, num_simulations=num_simulations_per_move)
 
-            # collect Q-values per legal action at this decision point
+            # collect Q-values per available action at this decision point
             q_vals = {}
-            for act in state.legal_actions():
+            for act in state.empty_cells():
                 child = root.children.get(act)
                 if child is not None and child.N > 0:
                     q_vals[act] = child.W / child.N
@@ -354,10 +356,97 @@ def show_logged_game(history):
         board = info["board"]
         q_vals = info["q_vals"]
         print(f"--- O move {move_idx} ---")
-        tmp_state = TicTacToeState(board=board, current_player=PLAYER_O)
+        tmp_state = TicTacToeState(board=board, current_player=player_O)
         print_q_values_as_grid(tmp_state, q_vals)
 
 
+
+def make_convergence_plot():
+    # State: X plays centre, O to move
+    state = TicTacToeState()
+    state = state.play(4)  # X in middle
+
+    sims_list = [10, 50, 100, 200, 500, 1000]
+    diag_results = diagnose_root_state(state, sims_list)
+
+    # choose a few actions to track, e.g. corners 0,2,6,8
+    tracked_actions = [0, 2, 6, 8]
+
+    for a in tracked_actions:
+        y_vals = []
+        for n_sim, q_vals in diag_results:
+            q = q_vals.get(a)
+            # if never visited, skip or set NaN
+            y_vals.append(float('nan') if q is None else q)
+        plt.plot(sims_list, y_vals, marker='o', label=f'action {a}')
+
+    plt.xlabel('Simulations per move')
+    plt.ylabel('Estimated win probability for O')
+    plt.title('Convergence of MCTS value estimates (X in centre, O to move)')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig('convergence_qvalues.png', dpi=300)
+    plt.close()
+
+
+def plot_board_with_q(board, q_vals, title, filename):
+    fig, ax = plt.subplots()
+
+    # Coordinate system: cell centres at (0,1,2), board from -0.5 to 2.5
+    ax.set_xlim(-0.5, 2.5)
+    ax.set_ylim(-0.5, 2.5)
+    ax.set_aspect('equal')
+
+    # No ticks / labels
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # Draw tic-tac-toe grid
+    for x in [0.5, 1.5]:
+        ax.axvline(x, color="black", linewidth=2)
+    for y in [0.5, 1.5]:
+        ax.axhline(y, color="black", linewidth=2)
+
+    # Put row 0 at the top
+    ax.invert_yaxis()
+
+    # Symbols and Q-values
+    for r in range(3):
+        for c in range(3):
+            idx = 3 * r + c
+            val = board[idx]
+
+            if val == player_X:
+                # Red X in the centre of the cell
+                ax.text(c, r, "X", ha="center", va="center",
+                        fontsize=28, color="tab:red")
+            elif val == player_O:
+                # Blue O in the centre of the cell
+                ax.text(c, r, "O", ha="center", va="center",
+                        fontsize=28, color="tab:blue")
+            else:
+                # Empty cell: draw Q-value if available
+                q = q_vals.get(idx)
+                if q is not None:
+                    ax.text(c, r, f"{q:.2f}", ha="center", va="center",
+                            fontsize=12, color="dimgray")
+
+    ax.set_title(title)
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300)
+    plt.close()
+
+def make_logged_game_plots():
+    reward, winner, history = play_one_game_with_logging(num_simulations_per_move=500)
+
+    # Take first three O moves (you have 3 anyway)
+    for i, info in enumerate(history[:3], start=1):
+        board = info["board"]
+        q_vals = info["q_vals"]
+        title = f"O move {i}"
+        filename = f"logged_game_move{i}.png"
+        plot_board_with_q(board, q_vals, title, filename)
 
 
 if __name__ == "__main__":
@@ -388,4 +477,10 @@ if __name__ == "__main__":
     reward, winner, hist = play_one_game_with_logging(num_simulations_per_move=500)
     print("Final reward:", reward, "winner:", winner)
     show_logged_game(hist)
+
+    # game plots
+    make_logged_game_plots()
+
+    # convergence plot
+    make_convergence_plot()
 
