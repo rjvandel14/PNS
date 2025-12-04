@@ -320,7 +320,7 @@ def play_one_game_with_logging(num_simulations_per_move: int = 200):
             # O: MCTS, but keep root for logging q values
             a, root = mcts(state, num_simulations=num_simulations_per_move)
 
-            # collect Q-values per available action at this decision point
+            # collect  qvalues per available action at this decision point
             q_vals = {}
             for act in state.empty_cells():
                 child = root.children.get(act)
@@ -358,7 +358,7 @@ def make_convergence_plot():
     sims_list = [10, 50, 100, 200, 500, 1000]
     diag_results = diagnose_root_state(state, sims_list)
 
-    # choose a few actions to track, e.g. corners 0,2,6,8
+    # choose a few actions to track, e.g. corner points
     tracked_actions = [0, 2, 6, 8]
 
     for a in tracked_actions:
@@ -386,35 +386,35 @@ def plot_board_with_q(board, q_vals, title, filename):
     ax.set_ylim(-0.5, 2.5)
     ax.set_aspect('equal')
 
-    # No ticks / labels
+    # no ticks / labels
     ax.set_xticks([])
     ax.set_yticks([])
 
-    # Draw tic-tac-toe grid
+    # tic-tac-toe grid
     for x in [0.5, 1.5]:
         ax.axvline(x, color="black", linewidth=2)
     for y in [0.5, 1.5]:
         ax.axhline(y, color="black", linewidth=2)
 
-    # Put row 0 at the top
+    # row 0 at top
     ax.invert_yaxis()
 
-    # Symbols and Q-values
+    # symbols and qvalues
     for r in range(3):
         for c in range(3):
             idx = 3 * r + c
             val = board[idx]
 
             if val == player_X:
-                # Red X in the centre of the cell
+                # red x center of cell
                 ax.text(c, r, "X", ha="center", va="center",
                         fontsize=28, color="tab:red")
             elif val == player_O:
-                # Blue O in the centre of the cell
+                # blue o center of cell
                 ax.text(c, r, "O", ha="center", va="center",
                         fontsize=28, color="tab:blue")
             else:
-                # Empty cell: draw Q-value if available
+                # empty cell: draw qvalue if available
                 q = q_vals.get(idx)
                 if q is not None:
                     ax.text(c, r, f"{q:.2f}", ha="center", va="center",
@@ -428,7 +428,6 @@ def plot_board_with_q(board, q_vals, title, filename):
 def make_logged_game_plots():
     reward, winner, history = play_one_game_with_logging(num_simulations_per_move=500)
 
-    # Take first three O moves (you have 3 anyway)
     for i, info in enumerate(history[:3], start=1):
         board = info["board"]
         q_vals = info["q_vals"]
@@ -440,16 +439,16 @@ def make_logged_game_plots():
 if __name__ == "__main__":
     random.seed(0)
 
-    # Quick single game demo
+    # single game demo
     r, w = play_one_game(num_simulations_per_move=200, verbose=True)
     print("Reward for O:", r, "winner:", w)
 
-    # Evaluation vs random X
+    # evaluation vs random X
     evaluate(num_games=200, sims_per_move=50)
     evaluate(num_games=200, sims_per_move=200)
     evaluate(num_games=200, sims_per_move=800)
 
-    # 2) Convergence experiment from a fixed state
+    # convergence experiment from a fixed state
     start_state = TicTacToeState()
     # X plays center (index 4), now O to move
     start_state = start_state.play(4)
