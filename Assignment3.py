@@ -59,7 +59,8 @@ class TicTacToeState:
         """
         Reward from O's perspective. only defined in terminal states
         - 1 if O win, 
-        - 0 if X wins of draw
+        - 0 if X wins
+        - 0.5 if draw
         """
         done, winner = self.is_terminal()
         if not done:
@@ -69,7 +70,7 @@ class TicTacToeState:
         elif winner == player_X:
             return 0.0
         else:  # draw
-            return 0.0
+            return 0.5
 
     def pretty(self) -> str:
         # 3x3 representation of the board
