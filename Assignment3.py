@@ -34,9 +34,9 @@ class TicTacToeState:
     def lines(self):
         # all winning combinations (rows, cols and diagonals)
         return [
-            (0, 1, 2), (3, 4, 5), (6, 7, 8),  # rows
-            (0, 3, 6), (1, 4, 7), (2, 5, 8),  # columns
-            (0, 4, 8), (2, 4, 6)              # diagonals
+            (0, 1, 2), (3, 4, 5), (6, 7, 8), # rows
+            (0, 3, 6), (1, 4, 7), (2, 5, 8), # columns
+            (0, 4, 8), (2, 4, 6) # diagonals
         ]
 
     def is_terminal(self) -> Tuple[bool, int]:
@@ -52,8 +52,8 @@ class TicTacToeState:
                 return True, player_O
         # no winner: check for draw
         if all(v != 0 for v in self.board):
-            return True, 0  # draw
-        return False, 0    # game not finished
+            return True, 0 # draw
+        return False, 0 # game not finished
 
     def reward_for_O(self) -> Optional[float]:
         """
@@ -89,9 +89,9 @@ class Node:
         self.state = state # tic tac toe state at this node
         self.parent = parent # parent node
         self.action_taken = action_taken  # action from parent to reach this node
-        self.children: Dict[int, Node] = {}  # action -> child node
-        self.N = 0       # visit count
-        self.W = 0.0     # total reward (for O)
+        self.children: Dict[int, Node] = {} # action -> child node
+        self.N = 0 # visit count
+        self.W = 0.0 # total reward (for O)
 
     def is_fully_expanded(self) -> bool:
         # check if all available actions from this state have corresponsing child nodes.
@@ -114,9 +114,11 @@ class Node:
 
 ## MCTS: selection, expansion, simulation, backpropagation
 def tree_policy(node: Node, c: float) -> Node:
-    # Selection + expansion:
-    # starting from node, descend tree using UCT until non-terminal 
-    # node thats not fully expanded, then expand one child
+    """
+    Selection + expansion:
+    starting from node, descend tree using UCT until non-terminal 
+    node thats not fully expanded, then expand one child
+    """ 
    
     state = node.state
     while True:
@@ -138,9 +140,12 @@ def tree_policy(node: Node, c: float) -> Node:
 
 
 def default_policy(state: TicTacToeState) -> float:
-    # Simulation / rollout:
-    # starting from state, play random moves for both players until terminal state
-    # return terminal reward from O's perspective
+    """    
+    Simulation / rollout:
+    starting from state, play random moves for both players until terminal state
+    return terminal reward from O's perspective
+    """
+
     done, _ = state.is_terminal()
     while not done:
         actions = state.empty_cells()
@@ -153,8 +158,9 @@ def default_policy(state: TicTacToeState) -> float:
 
 
 def backup(node: Node, reward: float):
-    # Backpropagation: traverse path from leaf to root, update (N,W) every node on path
-
+    """
+    Backpropagation: traverse path from leaf to root, update (N,W) every node on path
+    """
     while node is not None:
         node.N += 1
         node.W += reward
@@ -269,7 +275,7 @@ def diagnose_root_state(state: TicTacToeState,
     results = []
 
     for n_sim in simulation_steps:
-        action, root = mcts(state, num_simulations=n_sim, c=c)
+        _, root = mcts(state, num_simulations=n_sim, c=c)
         q_per_action = {}
         for a in state.empty_cells():
             child = root.children.get(a)
@@ -282,7 +288,7 @@ def diagnose_root_state(state: TicTacToeState,
     return results
 
 def print_q_values_as_grid(state: TicTacToeState, q_vals: Dict[int, Optional[float]]):
-    
+
     # Print board and q value estimates for empty cells
     symbols = {player_X: "X", player_O: "O", 0: "."}
     for r in range(3):
@@ -380,7 +386,7 @@ def make_convergence_plot():
 
 
 def plot_board_with_q(board, q_vals, title, filename):
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
 
     ax.set_xlim(-0.5, 2.5)
     ax.set_ylim(-0.5, 2.5)
@@ -426,7 +432,7 @@ def plot_board_with_q(board, q_vals, title, filename):
     plt.close()
 
 def make_logged_game_plots():
-    reward, winner, history = play_one_game_with_logging(num_simulations_per_move=500)
+    _, _, history = play_one_game_with_logging(num_simulations_per_move=500)
 
     for i, info in enumerate(history[:3], start=1):
         board = info["board"]
